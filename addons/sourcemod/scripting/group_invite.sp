@@ -31,6 +31,7 @@ public Plugin:myinfo =
     url = "https://github.com/CrimsonTautology/sm_group_invite"
 };
 
+#define MAX_STEAMID_LENGTH 21
 #define MAX_COMMUNITYID_LENGTH 18 
 
 new Handle:g_Cvar_Enabled = INVALID_HANDLE;
@@ -55,17 +56,43 @@ public Action:Command_Invite(client, args)
     return Plugin_Handled;
 }
 
+stock bool:GetCommunityIDString(client, String:CommunityID[], const CommunityIDSize) 
+{ 
+    decl String:SteamID[MAX_STEAMID_LENGTH];
+    GetClientAuthString(client, SteamID, sizeof(SteamID));
+
+    decl String:SteamIDParts[3][11]; 
+    new const String:Identifier[] = "76561197960265728"; 
+
+    if ((CommunityIDSize < 1) || (ExplodeString(SteamID, ":", SteamIDParts, sizeof(SteamIDParts), sizeof(SteamIDParts[])) != 3)) 
+    { 
+        CommunityID[0] = '\0'; 
+        return false; 
+    } 
+
+    new Current, CarryOver = (SteamIDParts[1][0] == '1'); 
+    for (new i = (CommunityIDSize - 2), j = (strlen(SteamIDParts[2]) - 1), k = (strlen(Identifier) - 1); i >= 0; i--, j--, k--) 
+    { 
+        Current = (j >= 0 ? (2 * (SteamIDParts[2][j] - '0')) : 0) + CarryOver + (k >= 0 ? ((Identifier[k] - '0') * 1) : 0); 
+        CarryOver = Current / 10; 
+        CommunityID[i] = (Current % 10) + '0'; 
+    } 
+
+    CommunityID[CommunityIDSize - 1] = '\0'; 
+    return true; 
+}  
+
 InvitePopUp(inviter, invitee, String:group_id64[])
 {
     decl String:inviter_id64[MAX_COMMUNITYID_LENGTH], invitee_id64[MAX_COMMUNITYID_LENGTH], String:base_url[128];
-    Steam_GetCSteamIDForClient(client, inviter_id64, sizeof(inviter_id64));
-    Steam_GetCSteamIDForClient(client, invitee_id64, sizeof(invitee_id64));
+    GetCommunityIDString(inviter, inviter_id64, sizeof(inviter_id64));
+    GetCommunityIDString(invitee, invitee_id64, sizeof(invitee_id64));
 
 
     Format(url, sizeof(url),
-        "http://steamcommunity.com/actions/GroupInvite?type=groupInvite&inviter=%s&invitee=%s&group=%s",
-        inviter_id64, invitee_id64, group_id64
-        );
+            "http://steamcommunity.com/actions/GroupInvite?type=groupInvite&inviter=%s&invitee=%s&group=%s",
+            inviter_id64, invitee_id64, group_id64
+          );
 
     new Handle:panel = CreateKeyValues("data");
     KvSetString(panel, "title", "Steam Inviter");
