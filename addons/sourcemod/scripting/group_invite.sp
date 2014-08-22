@@ -19,6 +19,7 @@
 #pragma semicolon 1
 
 #include <sourcemod>
+#include <advanced_motd>
 
 #define PLUGIN_VERSION "0.1"
 
