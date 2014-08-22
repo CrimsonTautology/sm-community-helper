@@ -39,7 +39,7 @@ new Handle:g_Cvar_GroupID = INVALID_HANDLE;
 
 public OnPluginStart()
 {
-    LoadTranslations("group_invite.phrases");
+    LoadTranslations("community_helper.phrases");
 
     g_Cvar_Enabled = CreateConVar("sm_group_invite_enabled", "1", "Enabled");
     g_Cvar_GroupID = CreateConVar("sm_group_invite_group_id", "", "Your Steam Group's ID you wish to invite to");
@@ -49,11 +49,47 @@ public OnPluginStart()
 
 public Action:Command_Invite(client, args)
 {
+    if(!AreInvitesEnabled())
+    {
+        //TODO not enabled
+        return Plugin_Handled;
+    }
+
+    if(client <= 0)
+    {
+        //TODO not from a client
+        return Plugin_Handled;
+    }
+
+    new invitee;
+    if(args == 0)
+    {
+        //If no argument given, use player client is looking at
+        invitee = GetClientAimTarget(client);
+    } else {
+        //Use given argument for patial name search
+        decl String:search[MAX_NAME_LENGTH];
+        GetCmdArg(1, search, sizeof(search));
+        invitee = FindTargetEx(client, search, true, false, false);
+    }
+
+    if(invitee <= 0)
+    {
+        //invitee not found, show full list of players
+        DisplayClientMenu(client);
+        return Plugin_Handled;
+    }
+
     decl String:group_id64[32];
     GetConVarString(g_Cvar_GroupID, group_id64, sizeof(group_id64));
 
-    InvitePopUp(inviter, 0, group_id64);
+    InvitePopUp(client, invitee, group_id64);
     return Plugin_Handled;
+}
+
+bool:AreInvitesEnabled()
+{
+    return GetConVarBool(g_Cvar_Enabled);
 }
 
 stock bool:GetCommunityIDString(client, String:CommunityID[], const CommunityIDSize) 
@@ -103,3 +139,40 @@ InvitePopUp(inviter, invitee, String:group_id64[])
     ShowVGUIPanel(client, "info", panel, true);
     CloseHandle(panel);
 }
+
+//Menus
+InvitePlayerMenu(client)
+{
+    new Handle:menu = CreateMenu(InvitePlayerMenuHandler);
+    SetMenuTitle(menu, "Select Who To Invite");
+    decl String:name[MAX_NAME_LENGTH], String:userid[8];
+    for(new i = 1; i <= MaxClients; i++)
+    {
+        if(!IsClientInGame(i) || IsFakeClient(i)) continue;
+
+        GetClientName(i, name, sizeof(name));
+        IntToString(GetClientUserId(i), userid, sizeof(userid));
+        AddMenuItem(menu, userid, name);
+    }
+    DisplayMenu(menu, client, 20);
+}
+
+public InvitePlayerMenuHandler(Handle:menu, MenuAction:action, client, param) {
+    switch (action)
+    {
+        case MenuAction_Select:
+            {
+                new client = param1;
+                new String:info[32];
+                GetMenuItem(menu, param2, info, sizeof(info));
+                new invitee = GetClientOfUserId(StringToInt(info));
+
+                decl String:group_id64[32];
+                GetConVarString(g_Cvar_GroupID, group_id64, sizeof(group_id64));
+
+                InvitePopUp(client, invitee, group_id64);
+            }
+        case MenuAction_End: CloseHandle(menu);
+    }
+}
+
